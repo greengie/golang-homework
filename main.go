@@ -1,32 +1,34 @@
 package main
 
 import (
-	// "fmt"
-	"log"
-	"net/http"
-  "encoding/json"
-
-  "github.com/gorilla/mux"
+	"time"
+	log "github.com/Sirupsen/logrus"
+	"github.com/urfave/negroni"
+	"gopkg.in/mgo.v2"
 )
+var mongoSession *mgo.Session
 
-func ReverseString(w http.ResponseWriter, r *http.Request) {
-  params := mux.Vars(r)
-  var startstring = params["string"]
-  json.NewEncoder(w).Encode(Reverse(startstring))
+func getMongoSession() *mgo.Session {
+	return mongoSession
+
 }
 
-func Reverse(s string) string {
-    runes := []rune(s)
-    for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
-        runes[i], runes[j] = runes[j], runes[i]
-    }
-    return string(runes)
+func startMongo() {
+	session, err := mgo.Dial("localhost")
+	if err != nil {
+		log.Errorln("error mongo:", err)
+	}
+	session.SetMode(mgo.Monotonic, true)
+	mongoSession = session
 }
 
 func main() {
-	r := mux.NewRouter()
-	r.HandleFunc("/reversestring/{string}", ReverseString).Methods("GET")
-	if err := http.ListenAndServe(":3000", r); err != nil {
-		log.Fatal(err)
-	}
+	log.SetFormatter(&log.TextFormatter{ForceColors: true, FullTimestamp: true, TimestampFormat: time.Kitchen})
+	// log.SetLevel(log.DebugLevel)
+	startMongo()
+	n := negroni.New()
+	n.Use(negroni.NewRecovery())
+
+	n.UseHandler(NewRouter())
+	n.Run(":3000")
 }
